@@ -12,7 +12,9 @@ const PORT = process.env.PORT || 5000;
 
 //Express.js
 const app = express();
-app.use(express.json()).use(cors()).use("/api", router);
+app.use(express.json({
+  limit: 1e8
+})).use(cors()).use("/api", router);
 
 //Socket.io
 const server = http.createServer(app);

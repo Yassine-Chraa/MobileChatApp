@@ -9,7 +9,7 @@ export const login = async (req, res) => {
   try {
     let user = await User.findOne({ email: email });
     if (!user) {
-      res.status(500).json("Account doesn't exist");
+      res.status(500).json({error:"Account doesn't exist"});
     } else {
       if (await bcrypt.compare(password, user.password)) {
         const friendsId = user.friends;
@@ -33,7 +33,7 @@ export const login = async (req, res) => {
         });
         res.status(200).json({ result: { ...user._doc, friends }, token });
       } else {
-        res.status(500).json("Password incorrect");
+        res.status(500).json({error:"Password incorrect"});
       }
     }
   } catch (e) {

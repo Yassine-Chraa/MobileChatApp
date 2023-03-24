@@ -13,9 +13,12 @@ import DocumentPicker from 'react-native-document-picker';
 import colors from '../../const/colors';
 import {updateUser} from '../../store/actions/auth';
 import {useDispatch, useSelector} from 'react-redux';
+import RNFetchBlob from 'rn-fetch-blob';
+import {launchImageLibrary} from 'react-native-image-picker';
 const Profile = ({navigation}) => {
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.result);
+  const [image, setImage] = React.useState(user.profile);
   const [form, setForm] = React.useState({
     name: user.name,
     email: user.email,
@@ -24,13 +27,27 @@ const Profile = ({navigation}) => {
 
   const handleDocumentSelection = React.useCallback(async () => {
     try {
-      const response = await DocumentPicker.pick({
-        presentationStyle: 'fullScreen',
+      const response = await launchImageLibrary({
+        mediaType: 'photo',
       });
+      console.log(response.assets[0]);
+      const imageData = await RNFetchBlob.fs.readFile(
+        response.assets[0].uri,
+        'base64',
+      );
+
+      const files = RNFetchBlob.fs.dirs.SDCardApplicationDir + '/files';
+      const filePath = `${files}/${response.assets[0].fileName}`;
+      RNFetchBlob.fs
+        .createFile(filePath, imageData, 'base64')
+        .then(async path => {
+          setImage(path);
+        });
+
       setForm(prev => {
         return {
           ...prev,
-          profile: response[0].uri,
+          profile: imageData,
         };
       });
     } catch (err) {
@@ -38,6 +55,24 @@ const Profile = ({navigation}) => {
     }
   }, []);
 
+  React.useEffect(()=>{
+    const date = new Date()
+    const files = RNFetchBlob.fs.dirs.SDCardApplicationDir + '/files';
+    const filePath = `${files}/profile-${date.getFullYear()}${
+      date.getMonth() < 10 ? '0' : ''
+    }${date.getMonth() + 1}${date.getDate() < 10 ? '0' : ''}${date.getDate()}-${
+      date.getHours() < 10 ? '0' : ''
+    }${date.getHours()}${
+      date.getMinutes() < 10 ? '0' : ''
+    }${date.getMinutes()}${
+      date.getSeconds() < 10 ? '0' : ''
+    }${date.getSeconds()}.jpg`;
+    RNFetchBlob.fs
+      .createFile(filePath, user.profile, 'base64')
+      .then(async path => {
+        setImage(path);
+      });
+  },[user.profile])
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -47,7 +82,7 @@ const Profile = ({navigation}) => {
         <TouchableOpacity
           onPress={() => {
             dispatch(updateUser(form));
-            navigation.navigate('Chats')
+            navigation.navigate('Chats');
           }}>
           <Text style={{color: '#E21818', fontSize: 18, fontWeight: 'bold'}}>
             Save
@@ -56,7 +91,7 @@ const Profile = ({navigation}) => {
       </View>
       <View style={styles.main}>
         <View style={{marginLeft: 'auto', marginRight: 'auto'}}>
-          <Image style={styles.image} source={{uri: form.profile}} />
+          <Image style={styles.image} source={{uri: 'file:///'+image}} />
           <TouchableOpacity
             activeOpacity={0.4}
             style={styles.addIcon}
