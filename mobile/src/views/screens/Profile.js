@@ -1,78 +1,65 @@
 import {Icon} from '@rneui/base';
-import * as React from 'react';
+import {Image} from '@rneui/themed';
+import {useCallback, useEffect, useState} from 'react';
 import {
   Text,
   StyleSheet,
   View,
-  Image,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import DocumentPicker from 'react-native-document-picker';
 import colors from '../../const/colors';
 import {updateUser} from '../../store/actions/auth';
 import {useDispatch, useSelector} from 'react-redux';
-import RNFetchBlob from 'rn-fetch-blob';
 import {launchImageLibrary} from 'react-native-image-picker';
+import RNFetchBlob from 'rn-fetch-blob';
 const Profile = ({navigation}) => {
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.result);
-  const [image, setImage] = React.useState(user.profile);
-  const [form, setForm] = React.useState({
+  const [form, setForm] = useState({
     name: user.name,
     email: user.email,
     profile: user.profile,
   });
+  const [loading, setLoading] = useState();
 
-  const handleDocumentSelection = React.useCallback(async () => {
-    try {
-      const response = await launchImageLibrary({
-        mediaType: 'photo',
-      });
-      console.log(response.assets[0]);
-      const imageData = await RNFetchBlob.fs.readFile(
-        response.assets[0].uri,
-        'base64',
-      );
+  const handleDocumentSelection = useCallback(async () => {
+    const response = await launchImageLibrary({
+      mediaType: 'photo',
+    });
 
-      const files = RNFetchBlob.fs.dirs.SDCardApplicationDir + '/files';
-      const filePath = `${files}/${response.assets[0].fileName}`;
-      RNFetchBlob.fs
-        .createFile(filePath, imageData, 'base64')
-        .then(async path => {
-          setImage(path);
+    setLoading(true);
+    const {uri, type} = response.assets[0];
+    const imageData = await RNFetchBlob.fs.readFile(uri, 'base64');
+    const file = `data:${type};base64,${imageData}`;
+    const data = new FormData();
+    data.append('file', file);
+    data.append('upload_preset', 'wafkbnld');
+    data.append('cloud_name', 'dfwmkpyfy');
+    fetch('https://api.cloudinary.com/v1_1/dfwmkpyfy/upload', {
+      method: 'post',
+      body: data,
+    })
+      .then(res => res.json())
+      .then(data => {
+        setForm(prev => {
+          return {
+            ...prev,
+            profile: data.secure_url,
+          };
         });
-
-      setForm(prev => {
-        return {
-          ...prev,
-          profile: imageData,
-        };
+      })
+      .finally(() => {
+        setLoading(false);
+      })
+      .catch(err => {
+        console.log(err);
       });
-    } catch (err) {
-      console.warn(err);
-    }
   }, []);
 
-  React.useEffect(()=>{
-    const date = new Date()
-    const files = RNFetchBlob.fs.dirs.SDCardApplicationDir + '/files';
-    const filePath = `${files}/profile-${date.getFullYear()}${
-      date.getMonth() < 10 ? '0' : ''
-    }${date.getMonth() + 1}${date.getDate() < 10 ? '0' : ''}${date.getDate()}-${
-      date.getHours() < 10 ? '0' : ''
-    }${date.getHours()}${
-      date.getMinutes() < 10 ? '0' : ''
-    }${date.getMinutes()}${
-      date.getSeconds() < 10 ? '0' : ''
-    }${date.getSeconds()}.jpg`;
-    RNFetchBlob.fs
-      .createFile(filePath, user.profile, 'base64')
-      .then(async path => {
-        setImage(path);
-      });
-  },[user.profile])
+  useEffect(() => {}, [user.profile]);
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -91,7 +78,11 @@ const Profile = ({navigation}) => {
       </View>
       <View style={styles.main}>
         <View style={{marginLeft: 'auto', marginRight: 'auto'}}>
-          <Image style={styles.image} source={{uri: 'file:///'+image}} />
+          <Image
+           PlaceholderContent={<ActivityIndicator />}
+            style={styles.image}
+            source={{uri: form.profile}}
+          />
           <TouchableOpacity
             activeOpacity={0.4}
             style={styles.addIcon}
@@ -124,6 +115,30 @@ const Profile = ({navigation}) => {
             style={styles.input}
           />
         </View>
+        {loading ? (
+          <View
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#fff',
+              opacity: 0.8,
+              zIndex: 2,
+              justifyContent: 'center',
+            }}>
+            <View
+              style={{
+                marginLeft: 'auto',
+                marginRight: 'auto',
+                top: '50%',
+              }}>
+              <Text style={{marginBottom: 8, fontSize: 16}}>
+                Image Upload...
+              </Text>
+              <ActivityIndicator size={'large'} color="darkslateblue" />
+            </View>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );

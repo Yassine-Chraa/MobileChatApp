@@ -12,14 +12,12 @@ const PORT = process.env.PORT || 5000;
 
 //Express.js
 const app = express();
-app.use(express.json({
-  limit: 1e8
-})).use(cors()).use("/api", router);
+app.use(express.json()).use(cors()).use("/api", router);
 
 //Socket.io
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 1e8,
+  maxHttpBufferSize: 1e10,
 });
 
 io.on("connect", (socket) => {

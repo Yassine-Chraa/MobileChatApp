@@ -1,10 +1,9 @@
-import {Button} from '@rneui/base';
+import {Image} from '@rneui/themed';
 import {useCallback, useEffect, useState} from 'react';
 import {
   StyleSheet,
   View,
   Text,
-  Image,
   FlatList,
   TouchableOpacity,
   TextInput,
@@ -16,6 +15,7 @@ import {logout} from '../../store/actions/auth';
 import {useDispatch, useSelector} from 'react-redux';
 import {getLastMessage} from '../../realm/controllers/MessageController';
 import {useFocusEffect} from '@react-navigation/native';
+import socket from '../../socket';
 
 const HomeScreen = ({navigation}) => {
   const dispatch = useDispatch();
@@ -26,18 +26,24 @@ const HomeScreen = ({navigation}) => {
     friends.forEach(async friend => {
       const lastMessage = await getLastMessage(friend._id);
       setLastMessages(prev => {
-        return [...prev, lastMessage]
+        return [...prev, lastMessage];
       });
     });
   };
 
   useFocusEffect(
     useCallback(() => {
-      setLastMessages([])
+      setLastMessages([]);
       fetchLastMessage();
     }, [friends]),
   );
-  
+  useEffect(() => {
+    socket.on('message', _message => {
+      setLastMessages([]);
+      fetchLastMessage();
+    });
+  },[]);
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={{...styles.header, ...styles.marginConfig}}>
@@ -106,7 +112,9 @@ const HomeScreen = ({navigation}) => {
                     <Text>{time}</Text>
                   </View>
                   <Text style={{fontSize: 15}}>
-                    {lastMessages[index]?.type === 'text'?lastMessages[index]?.content: 'media'}
+                    {lastMessages[index]?.type === 'text'
+                      ? lastMessages[index]?.content
+                      : 'media'}
                   </Text>
                 </View>
               </View>
