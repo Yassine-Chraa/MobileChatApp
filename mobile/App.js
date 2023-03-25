@@ -7,16 +7,78 @@ import LoginScreen from './src/views/screens/LoginScreen';
 import Signup from './src/views/screens/Signup';
 import {useSelector} from 'react-redux';
 import colors from './src/const/colors';
+import {useEffect} from 'react';
+import socket from './src/socket';
+import {
+  getLastMessage,
+  storeMessage,
+} from './src/realm/controllers/MessageController';
+import RNFetchBlob from 'rn-fetch-blob';
 const Stack = createNativeStackNavigator();
 
 const App = () => {
   const user = useSelector(state => state.user);
+  const storeImage = newMessage => {
+    let date;
+    if (typeof newMessage.sendAt === 'string') {
+      date = new Date(newMessage.sendAt);
+    } else {
+      date = newMessage.sendAt;
+    }
+
+    const files = RNFetchBlob.fs.dirs.SDCardApplicationDir + '/files';
+    const filePath = `${files}/file-${date.getFullYear()}${
+      date.getMonth() < 10 ? '0' : ''
+    }${date.getMonth() + 1}${date.getDate() < 10 ? '0' : ''}${date.getDate()}-${
+      date.getHours() < 10 ? '0' : ''
+    }${date.getHours()}${
+      date.getMinutes() < 10 ? '0' : ''
+    }${date.getMinutes()}${
+      date.getSeconds() < 10 ? '0' : ''
+    }${date.getSeconds()}.${newMessage.type
+      .replace('image/', '')
+      .replace('video/', '')
+      .replace('audio/', '')}`;
+    RNFetchBlob.fs
+      .createFile(filePath, newMessage.content, 'base64')
+      .then(async path => {
+        await storeMessage({...newMessage, content: path});
+        const res = await getLastMessage(newMessage.receiver);
+        socket.emit('receiveMessage', newMessage.receiver);
+      });
+  };
+  useEffect(() => {
+    if (user) {
+      socket.emit('join', user.result._id, error => {
+        if (error) {
+          console.log(error);
+        }
+      });
+      socket.on('message', async _message => {
+        if(_message.message.sender !== user.result._id){
+          if (_message.message.type == 'text') {
+            await storeMessage({..._message.message,status: 'received'});
+            socket.emit('receiveMessage', _message.message.receiver);
+          } else {
+            storeImage({..._message.message,status: 'received'});
+          }
+        }
+      });
+      return () => {
+        socket.off('message');
+      };
+    }
+  }, [user]);
   return (
-    <NavigationContainer theme={{dark:true,colors:{
-      background: '#fff',
-      card: '#fff',
-      border: colors.special1,
-    }}}>
+    <NavigationContainer
+      theme={{
+        dark: true,
+        colors: {
+          background: '#fff',
+          card: '#fff',
+          border: colors.special1,
+        },
+      }}>
       <Stack.Navigator screenOptions={{headerShown: false}}>
         {user ? (
           <>

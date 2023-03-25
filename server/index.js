@@ -21,20 +21,18 @@ const io = new Server(server, {
 });
 
 io.on("connect", (socket) => {
-  console.log("connected");
   socket.on("join", (user_id) => {
     socket.join(`room-${user_id}`);
     console.log("join");
   });
-  socket.on("sendMessage", (message, callback) => {
-    callback();
-    socket.join(`room-${message.receiver}`);
-    //io.to(`room-${message.receiver}`).emit("message", { message });
-    socket.broadcast
-      .to("")
-      .to(`room-${message.receiver}`)
-      .emit("message", { message });
+  socket.on("sendMessage", async (message, callback) => {
+    await callback();
+    io.to(`room-${message.receiver}`).emit("message", { message });
     console.log("message sended");
+  });
+  socket.on("receiveMessage", (receiver) => {
+    io.to(`room-${receiver}`).emit("message_received");
+    console.log("message received");
   });
 
   socket.on("disconnect", () => {

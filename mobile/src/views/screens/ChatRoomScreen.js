@@ -14,6 +14,7 @@ import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import colors from '../../const/colors';
 import {useSelector} from 'react-redux';
 import {
+  deleteAll,
   getRoomMessages,
   storeMessage,
 } from '../../realm/controllers/MessageController';
@@ -26,8 +27,8 @@ import Message from '../../components/Message';
 const ChatRoomScreen = ({navigation, route}) => {
   const {friend} = route.params;
   const user_id = useSelector(state => state.user.result._id);
+  const profile = useSelector(state => state.user.result.profile);
   const [message, setMessage] = useState('');
-  const [file, setFile] = useState('');
   const [roomMessages, setRoomMessages] = useState([]);
 
   const [openOptions, setOpenOptions] = useState(false);
@@ -35,7 +36,7 @@ const ChatRoomScreen = ({navigation, route}) => {
     const roomMessages = await getRoomMessages(user_id);
     setRoomMessages(roomMessages);
   };
-  const storeImage = newMessage => {
+  const storeImage = async newMessage => {
     let date;
     if (typeof newMessage.sendAt === 'string') {
       date = new Date(newMessage.sendAt);
@@ -56,16 +57,34 @@ const ChatRoomScreen = ({navigation, route}) => {
       .replace('image/', '')
       .replace('video/', '')
       .replace('audio/', '')}`;
-    RNFetchBlob.fs
-      .createFile(filePath, newMessage.content, 'base64')
-      .then(async path => {
-        console.log(path);
-        await storeMessage({...newMessage, content: path});
-        fetchData();
-      });
+    const path = await RNFetchBlob.fs.createFile(
+      filePath,
+      newMessage.content,
+      'base64',
+    );
+    await storeMessage({...newMessage, content: path});
+    fetchData();
   };
-  const sendMessage = async () => {
-    if (file != '') {
+  const sendMessage = async (type = null) => {
+    if (type) {
+      let file;
+      if (type === 'audio') {
+        try {
+          const response = await DocumentPicker.pick({
+            presentationStyle: 'fullScreen',
+            type: DocumentPicker.types.audio,
+          });
+          file = response[0];
+        } catch (err) {
+          console.warn(err);
+        }
+      } else {
+        const result =
+          type === 'camera'
+            ? await launchCamera()
+            : await launchImageLibrary({mediaType: type});
+        file = result.assets[0];
+      }
       const imageData = await RNFetchBlob.fs.readFile(file.uri, 'base64');
       const newMessage = {
         sender: user_id,
@@ -74,11 +93,12 @@ const ChatRoomScreen = ({navigation, route}) => {
         type: file.type,
         sendAt: new Date(),
       };
-      socket.emit('sendMessage', newMessage, () => {
-        setFile('');
-        storeImage(newMessage);
-        setOpenOptions(false);
+      socket.emit('sendMessage', newMessage, async () => {
+        await storeImage({...newMessage, status: 'sent'});
       });
+      if (!socket.connected)
+        await storeImage({...newMessage, status: 'not sent'});
+      setOpenOptions(false);
     } else {
       if (message != '') {
         const newMessage = {
@@ -88,44 +108,23 @@ const ChatRoomScreen = ({navigation, route}) => {
           type: 'text',
           sendAt: new Date(),
         };
-        socket.emit('sendMessage', newMessage, () => {
-          setMessage('');
-          storeMessage(newMessage);
+
+        socket.emit('sendMessage', newMessage, async () => {
+          await storeMessage({...newMessage, status: 'sent'});
         });
+        if (!socket.connected)
+          await storeMessage({...newMessage, status: 'not sent'});
+        fetchData();
+        setMessage('');
       }
     }
   };
-  const handleSelection = useCallback(async type => {
-    console.log(type);
-    if (type === 'audio') {
-      try {
-        const response = await DocumentPicker.pick({
-          presentationStyle: 'fullScreen',
-          type: DocumentPicker.types.audio,
-        });
-        setFile(response[0]);
-      } catch (err) {
-        console.warn(err);
-      }
-    } else {
-      const result =
-        type === 'camera'
-          ? await launchCamera()
-          : await launchImageLibrary({mediaType: type});
-      setFile(result.assets[0]);
-    }
-  }, []);
   useEffect(() => {
     fetchData();
   }, [user_id, friend._id]);
   useEffect(() => {
     socket.on('message', _message => {
-      if (_message.message.type == 'text') {
-        storeMessage(_message.message);
-        fetchData();
-      } else {
-        storeImage(_message.message);
-      }
+      fetchData();
     });
   }, []);
   return (
@@ -159,26 +158,37 @@ const ChatRoomScreen = ({navigation, route}) => {
           inverted
           data={roomMessages}
           renderItem={({item}) => {
-            return <Message user_id={user_id} profile={friend.profil} item={item}/>
+            return (
+              <Message
+                user_id={user_id}
+                profile={item.sender === user_id ? profile : friend.profile}
+                item={item}
+              />
+            );
           }}
         />
         {openOptions ? (
           <View style={styles.options}>
             <TouchableOpacity
-              onPress={() => handleSelection('photo')}
+              onPress={() => sendMessage('photo')}
               activeOpacity={0.4}
               style={{...styles.option, backgroundColor: '#B46060'}}>
               <Icon size={20} type="font-awesome" name="image" color={'#fff'} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => handleSelection('video')}
+              onPress={() => sendMessage('video')}
               activeOpacity={0.4}
               style={{...styles.option, backgroundColor: '#B46060'}}>
-              <Icon size={20} type="font-awesome" name="play-circle" color={'#fff'} />
+              <Icon
+                size={20}
+                type="font-awesome"
+                name="play-circle"
+                color={'#fff'}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.4}
-              onPress={() => handleSelection('audio')}
+              onPress={() => sendMessage('audio')}
               style={{...styles.option, backgroundColor: colors.green}}>
               <Icon
                 size={20}
@@ -188,7 +198,7 @@ const ChatRoomScreen = ({navigation, route}) => {
               />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => handleSelection('camera')}
+              onPress={() => sendMessage('camera')}
               activeOpacity={0.4}
               style={{...styles.option, backgroundColor: '#7149C6'}}>
               <Icon
@@ -223,13 +233,15 @@ const ChatRoomScreen = ({navigation, route}) => {
           <View
             style={{paddingRight: 0, marginLeft: -58, flexDirection: 'row'}}>
             <TouchableOpacity
-              onPress={() => setOpenOptions(prev => !prev)}
+              onPress={() => {
+                setOpenOptions(prev => !prev);
+              }}
               activeOpacity={0.4}>
               <Icon name={'link'} size={24} color={colors.green} />
             </TouchableOpacity>
             <TouchableOpacity
               style={{marginLeft: 4}}
-              onPress={() => handleSelection('camera')}
+              onPress={() => sendMessage('camera')}
               activeOpacity={0.4}>
               <Icon
                 type="font-awesome"
@@ -239,7 +251,7 @@ const ChatRoomScreen = ({navigation, route}) => {
               />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity activeOpacity={0.4} onPress={sendMessage}>
+          <TouchableOpacity activeOpacity={0.4} onPress={() => sendMessage()}>
             <MaterialIcon
               type="material"
               name="send"

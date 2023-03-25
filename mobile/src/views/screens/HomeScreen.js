@@ -25,6 +25,7 @@ const HomeScreen = ({navigation}) => {
   const fetchLastMessage = () => {
     friends.forEach(async friend => {
       const lastMessage = await getLastMessage(friend._id);
+      console.log(lastMessage)
       setLastMessages(prev => {
         return [...prev, lastMessage];
       });
@@ -38,11 +39,11 @@ const HomeScreen = ({navigation}) => {
     }, [friends]),
   );
   useEffect(() => {
-    socket.on('message', _message => {
+    socket.on('message_received', () => {
       setLastMessages([]);
       fetchLastMessage();
     });
-  },[]);
+  }, []);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -114,7 +115,9 @@ const HomeScreen = ({navigation}) => {
                   <Text style={{fontSize: 15}}>
                     {lastMessages[index]?.type === 'text'
                       ? lastMessages[index]?.content
-                      : 'media'}
+                      : lastMessages[index]
+                      ? 'media'
+                      : ''}
                   </Text>
                 </View>
               </View>

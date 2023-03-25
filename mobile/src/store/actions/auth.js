@@ -19,10 +19,6 @@ export const login = (credential, success,error) => async dispatch => {
     dispatch({type: 'LOGIN', payload: data});
     console.log(data)
     success();
-    return () => {
-      socket.on('disconnect');
-      socket.off();
-    };
   } catch (e) {
     console.log(error.message);
     error('Email or password incorrect');

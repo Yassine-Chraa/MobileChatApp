@@ -12,7 +12,6 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useDispatch} from 'react-redux';
 import {login} from '../../store/actions/auth';
 import AwesomeAlert from 'react-native-awesome-alerts';
-import socket from '../../socket';
 const re = /\S+@\S+\.\S+/;
 const LoginScreen = () => {
   const dispatch = useDispatch();
@@ -59,11 +58,6 @@ const LoginScreen = () => {
                 {email, password},
                 () => {
                   setLoading(false);
-                  socket.emit('join', data.result._id, error => {
-                    if (error) {
-                      console.log(error);
-                    }
-                  });
                 },
                 error => {
                   setError(error);

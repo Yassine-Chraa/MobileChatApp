@@ -6,6 +6,7 @@ const MessageSchema = {
     receiver: 'string',
     content: 'string',
     type: 'string',
+    status: 'string',
     sendAt: {type: 'date', default: () => new Date()},
   },
   primaryKey: '_id',
